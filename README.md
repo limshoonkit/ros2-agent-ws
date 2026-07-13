@@ -10,21 +10,28 @@ https://github.com/user-attachments/assets/069eb3d0-76cd-48bf-947b-88494991641d
 
 ## Get started
 
-1. Get [isaacsim](https://docs.isaacsim.omniverse.nvidia.com/4.5.0/installation/download.html) and the asset packs to populate your scene.
-2. Get the [px4 extension plugin](https://github.com/limshoonkit/uosm.isaac.px4_bridge)
-3. Get dependencies for [ros-agents](src/ros-agents/README.md)
+1. Get [Isaac Sim](https://docs.isaacsim.omniverse.nvidia.com/4.5.0/installation/download.html) and the asset packs to populate your scene.
+2. Get the [px4 extension plugin](https://github.com/limshoonkit/uosm.isaac.px4_bridge).
+3. Clone **this** workspace (correct repo name) and initialize submodules so `src/ros-agents` and `src/ros-sugar` are present (see `.gitmodules`). Then read [ros-agents README](src/ros-agents/README.md) for Ollama / agent deps.
 
-```
-git clone --recursive https://github.com/limshoonkit/ros2-agent-ws.git
-# git submodule update --init --recursive
+```bash
+git clone --recursive https://github.com/limshoonkit/ros2-px4-agent-ws.git
+cd ros2-px4-agent-ws
+# If you cloned without --recursive:
+git submodule update --init --recursive
 ```
 
 ## To build
-```
+
+The message package directory is `src/px4_msg`, but the ROS package name is **`px4_msgs`** (see that package’s `package.xml`). Build messages first, then the rest of the workspace:
+
+```bash
 colcon build --packages-select px4_msgs
 source install/setup.bash
 colcon build
 ```
+
+If Python code cannot import a PX4 message type (for example historical reports of missing `VehicleOdometry`), refresh `px4_msgs` to a set that matches your PX4 / bridge version rather than editing application nodes blindly.
 
 ## To run
 In one terminal, run the following. Wait awhile for the models to be downloaded. 

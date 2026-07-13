@@ -59,13 +59,14 @@ namespace uosm
 				declare_parameter("height", rclcpp::ParameterValue(1.00f));
 				declare_parameter("mission_objective", rclcpp::ParameterValue(""));
 				declare_parameter("introspector_object", rclcpp::ParameterValue("Aruco Marker"));
-				declare_parameter("resend_commnad", rclcpp::ParameterValue(true));
+				// Canonical name matches launch files (was misspelled resend_commnad).
+				declare_parameter("resend_command", rclcpp::ParameterValue(true));
 				declare_parameter("resend_size", rclcpp::ParameterValue(10));
 
 				height_ = get_parameter("height").as_double();
 				mission_objective_ = get_parameter("mission_objective").as_string();
 				introspector_object_ = get_parameter("introspector_object").as_string();
-				resend_command_ = get_parameter("resend_commnad").as_bool();
+				resend_command_ = get_parameter("resend_command").as_bool();
 				resend_size_ = get_parameter("resend_size").as_int();
 
 				// Publishers & Subscribers setup

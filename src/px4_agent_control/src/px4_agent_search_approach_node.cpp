@@ -68,6 +68,17 @@ namespace uosm
 				introspector_object_ = get_parameter("introspector_object").as_string();
 				resend_command_ = get_parameter("resend_commnad").as_bool();
 				resend_size_ = get_parameter("resend_size").as_int();
+				// Bound VLN history used when resending prompts (avoid unbounded growth / huge queries)
+				if (resend_size_ < 1)
+				{
+					RCLCPP_WARN(get_logger(), "resend_size=%d is < 1; clamping to 1", resend_size_);
+					resend_size_ = 1;
+				}
+				else if (resend_size_ > 100)
+				{
+					RCLCPP_WARN(get_logger(), "resend_size=%d is > 100; clamping to 100", resend_size_);
+					resend_size_ = 100;
+				}
 
 				// Publishers & Subscribers setup
 				const auto qos_profile = rclcpp::QoS(10)

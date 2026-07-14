@@ -49,6 +49,47 @@ namespace uosm
 			}
 		}
 
+		// Parse float inside CMD(...) for LLM Move/Turn lines. Fail-closed on missing
+		// ')', non-numeric text, non-finite values, or magnitudes above soft clamps
+		// (keeps uncaught stof from aborting the flight control node).
+		static inline bool tryParseCmdArg(const std::string &line, float *out, float abs_max)
+		{
+			if (out == nullptr || line.size() < 3)
+			{
+				return false;
+			}
+			const auto open_paren = line.find('(');
+			const auto close_paren = line.find(')', open_paren == std::string::npos ? 0 : open_paren + 1);
+			if (open_paren == std::string::npos || close_paren == std::string::npos || close_paren <= open_paren + 1)
+			{
+				return false;
+			}
+			const std::string num = line.substr(open_paren + 1, close_paren - open_paren - 1);
+			try
+			{
+				std::size_t idx = 0;
+				const float v = std::stof(num, &idx);
+				if (idx == 0 || !std::isfinite(v) || std::fabs(v) > abs_max)
+				{
+					return false;
+				}
+				// Reject trailing garbage after a partial number (e.g. "1.0xyz")
+				for (; idx < num.size(); ++idx)
+				{
+					if (!std::isspace(static_cast<unsigned char>(num[idx])))
+					{
+						return false;
+					}
+				}
+				*out = v;
+				return true;
+			}
+			catch (const std::exception &)
+			{
+				return false;
+			}
+		}
+
 		class PX4AgentControl : public rclcpp::Node
 		{
 		public:
@@ -199,8 +240,12 @@ namespace uosm
 					// Parse Turn command
 					if (line.find("Turn(") == 0)
 					{
-						// Extract angle in degrees
-						float angle_deg = std::stof(line.substr(5, line.find(')') - 5));
+						float angle_deg = 0.0f;
+						if (!tryParseCmdArg(line, &angle_deg, 360.0f))
+						{
+							RCLCPP_WARN(get_logger(), "Ignoring invalid Turn command: '%s'", line.c_str());
+							continue;
+						}
 						// Convert to radians and update heading
 						float angle_rad = angle_deg * DEG2RAD;
 						current_heading += angle_rad;
@@ -213,8 +258,12 @@ namespace uosm
 					// Parse Move command
 					else if (line.find("Move(") == 0)
 					{
-						// Extract distance in meters
-						float distance = std::stof(line.substr(5, line.find(')') - 5));
+						float distance = 0.0f;
+						if (!tryParseCmdArg(line, &distance, 50.0f))
+						{
+							RCLCPP_WARN(get_logger(), "Ignoring invalid Move command: '%s'", line.c_str());
+							continue;
+						}
 
 						// Update position based on current heading and distance
 						current_x += distance * cos(current_heading);

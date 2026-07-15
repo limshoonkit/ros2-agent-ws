@@ -50,6 +50,36 @@ namespace uosm
 			}
 		}
 
+		// Safe float from mission text (regex captures). Returns false if throw/non-finite/out of range.
+		static bool tryParseMissionCoord(const std::string &token, float *out, float max_abs = 500.0f)
+		{
+			if (!out)
+			{
+				return false;
+			}
+			try
+			{
+				size_t idx = 0;
+				float v = std::stof(token, &idx);
+				if (idx == 0 || !std::isfinite(v))
+				{
+					return false;
+				}
+				if (std::fabs(v) > max_abs)
+				{
+					v = std::copysign(max_abs, v);
+				}
+				*out = v;
+				return true;
+			}
+			catch (const std::exception &)
+			{
+				return false;
+			}
+		}
+
+
+
 		class PX4AgentControl : public rclcpp::Node
 		{
 		public:
@@ -108,8 +138,18 @@ namespace uosm
 				std::smatch match;
 				if (std::regex_search(mission_objective_, match, coords_pattern) && match.size() == 3)
 				{
-					goal_x = std::stof(match[1].str());
-					goal_y = std::stof(match[2].str());
+					float gx = 0.0f;
+					float gy = 0.0f;
+					if (!tryParseMissionCoord(match[1].str(), &gx) || !tryParseMissionCoord(match[2].str(), &gy))
+					{
+						RCLCPP_WARN(get_logger(), "Failed to parse goal coordinates from mission objective");
+						goal_x = 0.0f;
+						goal_y = 0.0f;
+						is_init_ = false;
+						return;
+					}
+					goal_x = gx;
+					goal_y = gy;
 					RCLCPP_INFO(get_logger(), "Goal coordinates parsed: (%.2f, %.2f)", goal_x, goal_y);
 				}
 				else

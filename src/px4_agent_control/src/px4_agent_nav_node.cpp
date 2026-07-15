@@ -63,6 +63,18 @@ namespace uosm
 				declare_parameter("resend_size", rclcpp::ParameterValue(10));
 
 				height_ = get_parameter("height").as_double();
+				// Fail-closed positive hold altitude (meters, magnitude used with NED -abs)
+				if (!std::isfinite(height_) || height_ <= 0.0)
+				{
+					RCLCPP_WARN(get_logger(), "height=%g is non-finite or <= 0; defaulting to 1.0 m", height_);
+					height_ = 1.0;
+				}
+				else if (height_ > 120.0)
+				{
+					RCLCPP_WARN(get_logger(), "height=%g m exceeds 120 m soft cap; clamping", height_);
+					height_ = 120.0;
+				}
+
 				mission_objective_ = get_parameter("mission_objective").as_string();
 				introspector_object_ = get_parameter("introspector_object").as_string();
 				resend_command_ = get_parameter("resend_commnad").as_bool();

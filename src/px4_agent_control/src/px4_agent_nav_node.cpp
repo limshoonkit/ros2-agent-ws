@@ -672,7 +672,10 @@ int main(int argc, char *argv[])
 					double landing_lon = home_lon + lon_offset * uosm::px4::RAD2DEG;
 					node->request_landing(landing_lat, landing_lon, home_alt);
 				}
-				if (nav_state == px4_msgs::msg::VehicleStatus::ARM_DISARM_REASON_AUTO_DISARM_LAND)
+				// ARM_DISARM_REASON_* is not a nav_state: use arming + latest_disarming_reason
+				if (arming_state == px4_msgs::msg::VehicleStatus::ARMING_STATE_DISARMED ||
+					node->vehicle_status_.latest_disarming_reason ==
+						px4_msgs::msg::VehicleStatus::ARM_DISARM_REASON_AUTO_DISARM_LAND)
 				{
 					node->switch_to_manual_mode();
 					state_ = STATE::DISARMED;

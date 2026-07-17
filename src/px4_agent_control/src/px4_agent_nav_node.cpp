@@ -30,6 +30,8 @@ namespace uosm
 		constexpr float HOVERING_TOLERANCE(0.1f); // based on short term vio drift
 		constexpr float FLYING_TOLERANCE(0.1f);	  // based on short term vio drift
 		constexpr float HEADING_TOLERANCE(0.1f);  //  0.1 rad ~= 5.73 deg
+		constexpr float VLN_TIMEOUT_SEC(30.0f);           // hang Ollama / VLN topic
+		constexpr float INTROSPECTION_TIMEOUT_SEC(20.0f); // hang VLM introspector
 		constexpr float RAD2DEG(180 / M_PI);
 		constexpr float DEG2RAD(M_PI / 180);
 		constexpr double EARTH_RADIUS(6378137.0); // Earth radius in meters at equator
@@ -532,6 +534,12 @@ int main(int argc, char *argv[])
 
 	state_ = STATE::DISARMED;
 	bool is_done_ = false;
+	rclcpp::Time vln_wait_start_;
+	rclcpp::Time intro_wait_start_;
+	bool vln_wait_armed = false;
+	bool intro_wait_armed = false;
+	bool vln_timeout_logged = false;
+	bool intro_timeout_logged = false;
 
 	auto node = std::make_shared<uosm::px4::PX4AgentControl>("/fmu/");
 	if (node->is_init_)
@@ -607,6 +615,9 @@ int main(int argc, char *argv[])
 					// once takeoff to sufficient height, start mission
 					node->is_vln_updated_ = false;
 					node->publish_vln_query();
+					vln_wait_start_ = node->now();
+					vln_wait_armed = true;
+					vln_timeout_logged = false;
 					state_ = STATE::FLYING;
 				}
 				break;
@@ -616,6 +627,7 @@ int main(int argc, char *argv[])
 				// RCLCPP_WARN(node->get_logger(), "STATE::FLYING");
 				if (node->is_vln_updated_)
 				{
+					vln_wait_armed = false;
 					const double dist = uosm::px4::computeEuclideanDistance(node->traj_, node->vehicle_lp_);
 					const double heading_diff = node->traj_.yaw - node->vehicle_lp_.heading;
 
@@ -625,9 +637,24 @@ int main(int argc, char *argv[])
 						node->is_vln_updated_ = false;
 						node->is_introspection_updated_ = false;
 						node->publish_introspector_query();
+						intro_wait_start_ = node->now();
+						intro_wait_armed = true;
+						intro_timeout_logged = false;
 						state_ = STATE::INTROSPECTION;
 					}
-					// TODO: add VLN timeout
+				}
+				else if (vln_wait_armed &&
+						 (node->now() - vln_wait_start_).seconds() > uosm::px4::VLN_TIMEOUT_SEC)
+				{
+					if (!vln_timeout_logged)
+					{
+						RCLCPP_ERROR(node->get_logger(),
+									 "VLN response timeout (%.0fs); fail-closed to LANDING",
+									 uosm::px4::VLN_TIMEOUT_SEC);
+						vln_timeout_logged = true;
+					}
+					is_done_ = true;
+					state_ = STATE::LANDING;
 				}
 				break;
 			}
@@ -636,6 +663,7 @@ int main(int argc, char *argv[])
 				// RCLCPP_WARN(node->get_logger(), "STATE::INTROSPECTION");
 				if (node->is_introspection_updated_)
 				{
+					intro_wait_armed = false;
 
 					if (node->is_mission_done_)
 					{
@@ -649,9 +677,24 @@ int main(int argc, char *argv[])
 						node->is_introspection_updated_ = false;
 						node->is_vln_updated_ = false;
 						node->publish_vln_query();
+						vln_wait_start_ = node->now();
+						vln_wait_armed = true;
+						vln_timeout_logged = false;
 						state_ = STATE::FLYING;
 					}
-					// TODO: add INTROSPECTION timeout
+				}
+				else if (intro_wait_armed &&
+						 (node->now() - intro_wait_start_).seconds() > uosm::px4::INTROSPECTION_TIMEOUT_SEC)
+				{
+					if (!intro_timeout_logged)
+					{
+						RCLCPP_ERROR(node->get_logger(),
+									 "Introspection response timeout (%.0fs); fail-closed to LANDING",
+									 uosm::px4::INTROSPECTION_TIMEOUT_SEC);
+						intro_timeout_logged = true;
+					}
+					is_done_ = true;
+					state_ = STATE::LANDING;
 				}
 				break;
 			}

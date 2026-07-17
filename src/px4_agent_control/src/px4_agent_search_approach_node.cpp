@@ -622,21 +622,25 @@ int main(int argc, char *argv[])
 			case STATE::INTROSPECTION:
 			{
 				// RCLCPP_WARN(node->get_logger(), "STATE::INTROSPECTION");
-				if (node->is_mission_done_)
-				{
-					// mission completed, switch to auto land
-					is_done_ = true;
-					state_ = STATE::LANDING;
-				}
-	
+				// Require if/else: when introspector answers "Yes", both flags are true.
+				// A second independent if would reset state_ from LANDING back to FLYING.
 				if (node->is_introspection_updated_)
 				{
-					// mission not completed, keep flying with vln cmds
-					node->is_introspection_updated_ = false;
-					node->is_vln_updated_ = false;
-					node->publish_vln_query();
-					state_ = STATE::FLYING;
-					// TODO: add INTROSPECTION timeout
+					if (node->is_mission_done_)
+					{
+						// mission completed, switch to auto land
+						is_done_ = true;
+						state_ = STATE::LANDING;
+					}
+					else
+					{
+						// mission not completed, keep flying with vln cmds
+						node->is_introspection_updated_ = false;
+						node->is_vln_updated_ = false;
+						node->publish_vln_query();
+						state_ = STATE::FLYING;
+						// TODO: add INTROSPECTION timeout
+					}
 				}
 				break;
 			}

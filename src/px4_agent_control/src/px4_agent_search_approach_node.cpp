@@ -16,6 +16,7 @@
 #include <chrono>
 #include <functional>
 #include <string>
+#include <algorithm>
 #include <regex>
 
 using namespace std::chrono;
@@ -30,6 +31,8 @@ namespace uosm
 		constexpr float HOVERING_TOLERANCE(0.1f); // based on short term vio drift
 		constexpr float FLYING_TOLERANCE(0.1f);	  // based on short term vio drift
 		constexpr float HEADING_TOLERANCE(0.1f);  //  0.1 rad ~= 5.73 deg
+		constexpr float MAX_TURN_DEG(180.0f);
+		constexpr float MAX_MOVE_M(5.0f);  // per-command setpoint bound
 		constexpr float GOAL_TOLERANCE(0.5f);
 		constexpr float RAD2DEG(180 / M_PI);
 		constexpr float DEG2RAD(M_PI / 180);
@@ -214,6 +217,7 @@ namespace uosm
 					{
 						// Extract angle in degrees
 						float angle_deg = std::stof(line.substr(5, line.find(')') - 5));
+						angle_deg = std::clamp(angle_deg, -MAX_TURN_DEG, MAX_TURN_DEG);
 						// Convert to radians and update heading
 						float angle_rad = angle_deg * DEG2RAD;
 						current_heading += angle_rad;
@@ -228,6 +232,8 @@ namespace uosm
 					{
 						// Extract distance in meters
 						float distance = std::stof(line.substr(5, line.find(')') - 5));
+
+						distance = std::clamp(distance, -MAX_MOVE_M, MAX_MOVE_M);
 
 						// Update position based on current heading and distance
 						current_x += distance * cos(current_heading);

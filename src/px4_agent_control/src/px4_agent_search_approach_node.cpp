@@ -27,6 +27,7 @@ namespace uosm
 	namespace px4
 	{
 		constexpr float PUBLISH_RATE(20.0f);
+		constexpr int OFFBOARD_ARM_TIMEOUT_TICKS(200); // ~10s at 20 Hz
 		constexpr float HOVERING_TOLERANCE(0.1f); // based on short term vio drift
 		constexpr float FLYING_TOLERANCE(0.1f);	  // based on short term vio drift
 		constexpr float HEADING_TOLERANCE(0.1f);  //  0.1 rad ~= 5.73 deg
@@ -506,6 +507,7 @@ int main(int argc, char *argv[])
 	rclcpp::init(argc, argv);
 
 	int preflight_check_timeout_count_ = 0;
+	int offboard_arm_timeout_count_ = 0;
 
 	enum STATE
 	{
@@ -577,11 +579,21 @@ int main(int argc, char *argv[])
 				node->switch_to_offboard_mode();
 				node->arm();
 
+					offboard_arm_timeout_count_++;
+					if (offboard_arm_timeout_count_ > uosm::px4::OFFBOARD_ARM_TIMEOUT_TICKS)
+					{
+						RCLCPP_ERROR(node->get_logger(), "Offboard arm timeout — exiting fail-closed");
+						node->disarm();
+						rclcpp::shutdown();
+						return 1;
+					}
+
 				if (nav_state == px4_msgs::msg::VehicleStatus::NAVIGATION_STATE_OFFBOARD &&
 					arming_state == px4_msgs::msg::VehicleStatus::ARMING_STATE_ARMED)
 				{
 					// arm and takeoff
-					state_ = STATE::HOVERING;
+					offboard_arm_timeout_count_ = 0;
+						state_ = STATE::HOVERING;
 				}
 				break;
 			}

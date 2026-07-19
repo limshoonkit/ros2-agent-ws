@@ -28,6 +28,8 @@ namespace uosm
 	{
 		constexpr float PUBLISH_RATE(20.0f);
 		constexpr float HOVERING_TOLERANCE(0.1f); // based on short term vio drift
+		// ~30s at 20 Hz if takeoff never reaches HOVERING_TOLERANCE
+		constexpr int HOVERING_TIMEOUT_TICKS(600);
 		constexpr float FLYING_TOLERANCE(0.1f);	  // based on short term vio drift
 		constexpr float HEADING_TOLERANCE(0.1f);  //  0.1 rad ~= 5.73 deg
 		constexpr float RAD2DEG(180 / M_PI);
@@ -519,6 +521,7 @@ int main(int argc, char *argv[])
 	rclcpp::init(argc, argv);
 
 	int preflight_check_timeout_count_ = 0;
+	int hovering_timeout_count_ = 0;
 
 	enum STATE
 	{
@@ -594,6 +597,7 @@ int main(int argc, char *argv[])
 					arming_state == px4_msgs::msg::VehicleStatus::ARMING_STATE_ARMED)
 				{
 					// arm and takeoff
+					hovering_timeout_count_ = 0;
 					state_ = STATE::HOVERING;
 				}
 				break;
@@ -601,6 +605,14 @@ int main(int argc, char *argv[])
 			case STATE::HOVERING:
 			{
 				// RCLCPP_WARN(node->get_logger(), "STATE::HOVERING");
+				hovering_timeout_count_++;
+				if (hovering_timeout_count_ > uosm::px4::HOVERING_TIMEOUT_TICKS)
+				{
+					RCLCPP_ERROR(node->get_logger(),
+								 "HOVERING takeoff timeout (%d ticks); aborting armed offboard wait",
+								 hovering_timeout_count_);
+					return 1;
+				}
 				const double dist = uosm::px4::computeEuclideanDistance(node->traj_, node->vehicle_lp_, true);
 				if (dist < uosm::px4::HOVERING_TOLERANCE)
 				{

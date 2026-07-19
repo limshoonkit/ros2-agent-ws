@@ -543,6 +543,17 @@ int main(int argc, char *argv[])
 		const float home_lon = node->vehicle_gp_.lon;
 		const float home_alt = node->vehicle_gp_.alt;
 
+		// Fail-closed if global position is missing or clearly unusable before arming.
+		if (!std::isfinite(home_lat) || !std::isfinite(home_lon) || !std::isfinite(home_alt) ||
+			(std::fabs(home_lat) < 1e-9f && std::fabs(home_lon) < 1e-9f))
+		{
+			RCLCPP_ERROR(
+				node->get_logger(),
+				"Invalid or missing home global position (lat=%.6f lon=%.6f alt=%.2f); aborting before arm/offboard",
+				home_lat, home_lon, home_alt);
+			return 1;
+		}
+
 		RCLCPP_WARN(node->get_logger(), "Pre-flight Check OK, home position: (lat = %.6f, lon = %.6f, alt = %.2f m)", home_lat, home_lon, home_alt);
 
 		// auto last_request = node->now();

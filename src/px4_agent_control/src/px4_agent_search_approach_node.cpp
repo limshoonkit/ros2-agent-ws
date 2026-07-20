@@ -69,6 +69,17 @@ namespace uosm
 				resend_command_ = get_parameter("resend_commnad").as_bool();
 				resend_size_ = get_parameter("resend_size").as_int();
 
+				// Require a non-empty mission objective before init (fail-closed)
+				{
+					const auto first = mission_objective_.find_first_not_of(" \t\r\n");
+					if (first == std::string::npos)
+					{
+						RCLCPP_ERROR(get_logger(), "mission_objective is required (empty or whitespace)");
+						is_init_ = false;
+						return;
+					}
+				}
+
 				// Publishers & Subscribers setup
 				const auto qos_profile = rclcpp::QoS(10)
 											 .reliability(rclcpp::ReliabilityPolicy::BestEffort)

@@ -13,6 +13,7 @@
 #include <rclcpp/parameter.hpp>
 
 #include <bits/stdc++.h>
+#include <cmath>
 #include <chrono>
 #include <functional>
 #include <string>
@@ -649,13 +650,32 @@ int main(int argc, char *argv[])
 					const auto current_x = node->vehicle_lp_.x;
 					const auto current_y = node->vehicle_lp_.y;
 					// Convert NED local position offset to lat/lon changes
-					double lat_offset = current_x / uosm::px4::EARTH_RADIUS;
-					double lon_offset = current_y / (uosm::px4::EARTH_RADIUS * cos(home_lat * uosm::px4::DEG2RAD));
+					const double cos_lat = std::cos(static_cast<double>(home_lat) * uosm::px4::DEG2RAD);
+					if (!std::isfinite(cos_lat) || std::fabs(cos_lat) < 1e-6)
+					{
+						RCLCPP_ERROR(node->get_logger(),
+									 "Landing lon_offset skipped: unsafe cos(home_lat)=%.6g (home_lat=%.6f)",
+									 cos_lat, home_lat);
+					}
+					else
+					{
+						double lat_offset = current_x / uosm::px4::EARTH_RADIUS;
+						double lon_offset = current_y / (uosm::px4::EARTH_RADIUS * cos_lat);
 
-					// Calculate the new lat/lon for landing
-					double landing_lat = home_lat + lat_offset * uosm::px4::RAD2DEG;
-					double landing_lon = home_lon + lon_offset * uosm::px4::RAD2DEG;
-					node->request_landing(landing_lat, landing_lon, home_alt);
+						// Calculate the new lat/lon for landing
+						double landing_lat = home_lat + lat_offset * uosm::px4::RAD2DEG;
+						double landing_lon = home_lon + lon_offset * uosm::px4::RAD2DEG;
+						if (!std::isfinite(landing_lat) || !std::isfinite(landing_lon))
+						{
+							RCLCPP_ERROR(node->get_logger(),
+										 "Landing lat/lon non-finite (%.6g, %.6g); skip request_landing",
+										 landing_lat, landing_lon);
+						}
+						else
+						{
+							node->request_landing(landing_lat, landing_lon, home_alt);
+						}
+					}
 				}
 				if (nav_state == px4_msgs::msg::VehicleStatus::ARM_DISARM_REASON_AUTO_DISARM_LAND)
 				{

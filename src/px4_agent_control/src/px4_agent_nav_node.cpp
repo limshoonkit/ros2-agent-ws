@@ -617,9 +617,12 @@ int main(int argc, char *argv[])
 				if (node->is_vln_updated_)
 				{
 					const double dist = uosm::px4::computeEuclideanDistance(node->traj_, node->vehicle_lp_);
-					const double heading_diff = node->traj_.yaw - node->vehicle_lp_.heading;
+					// Shortest-angle yaw error on [-pi, pi] (signed subtraction can reject left turns)
+					const double heading_diff = std::atan2(
+						std::sin(node->traj_.yaw - node->vehicle_lp_.heading),
+						std::cos(node->traj_.yaw - node->vehicle_lp_.heading));
 
-					if (dist < uosm::px4::FLYING_TOLERANCE && heading_diff < uosm::px4::HEADING_TOLERANCE)
+					if (dist < uosm::px4::FLYING_TOLERANCE && std::fabs(heading_diff) < uosm::px4::HEADING_TOLERANCE)
 					{
 						// once vehicle reached traj location, start introspection
 						node->is_vln_updated_ = false;

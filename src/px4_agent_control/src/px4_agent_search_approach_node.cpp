@@ -195,6 +195,14 @@ namespace uosm
 				float current_x = vehicle_lp_.x;
 				float current_y = vehicle_lp_.y;
 				float current_heading = vehicle_lp_.heading;
+				if (!std::isfinite(current_x) || !std::isfinite(current_y) || !std::isfinite(current_heading))
+				{
+					RCLCPP_ERROR(get_logger(),
+								 "Rejecting VLN trajectory update: non-finite local position/heading (x=%f y=%f hdg=%f)",
+								 current_x, current_y, current_heading);
+					is_vln_updated_ = false;
+					return;
+				}
 
 				// Parse the response string line by line
 				std::istringstream response_stream(vln_response_.data);
@@ -244,6 +252,13 @@ namespace uosm
 				}
 
 				// Update trajectory with new position and heading
+				if (!std::isfinite(current_x) || !std::isfinite(current_y) || !std::isfinite(current_heading))
+				{
+					RCLCPP_ERROR(get_logger(),
+								 "Rejecting VLN trajectory update after parse: non-finite setpoint");
+					is_vln_updated_ = false;
+					return;
+				}
 				traj_.position = {current_x, current_y, -std::abs((static_cast<float>(height_)))};
 				traj_.yaw = current_heading;
 

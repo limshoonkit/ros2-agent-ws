@@ -50,6 +50,44 @@ namespace uosm
 			}
 		}
 
+
+		/** True when introspector text is affirmative yes (trim, optional punct, case-insensitive). */
+		static inline bool isAffirmativeYes(std::string s)
+		{
+			// trim leading
+			const auto start = s.find_first_not_of(" \t\r\n");
+			if (start == std::string::npos)
+			{
+				return false;
+			}
+			s.erase(0, start);
+			// trim trailing
+			const auto end = s.find_last_not_of(" \t\r\n");
+			if (end != std::string::npos)
+			{
+				s.erase(end + 1);
+			}
+			// strip one trailing sentence punctuation common from VLMs
+			if (!s.empty())
+			{
+				const char c = s.back();
+				if (c == '.' || c == '!' || c == '?' || c == ';' || c == ':')
+				{
+					s.pop_back();
+				}
+			}
+			// trim again after punctuation strip
+			while (!s.empty() && (s.back() == ' ' || s.back() == '\t'))
+			{
+				s.pop_back();
+			}
+			for (char &ch : s)
+			{
+				ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+			}
+			return s == "yes";
+		}
+
 		class PX4AgentControl : public rclcpp::Node
 		{
 		public:
@@ -258,7 +296,7 @@ namespace uosm
 				is_introspection_updated_ = true;
 
 				// Update object detection status
-				if (introspector_response_.data == "Yes")
+				if (isAffirmativeYes(introspector_response_.data))
 				{
 					is_object_found_ = true;
 					RCLCPP_INFO(get_logger(), "Object detected - enabling movement commands");

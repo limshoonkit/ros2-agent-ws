@@ -50,6 +50,18 @@ namespace uosm
 			}
 		}
 
+		/** True when horizontal pose + heading are estimator-valid (PX4 VehicleLocalPosition flags). */
+		static inline bool localPositionReady2D(const px4_msgs::msg::VehicleLocalPosition &lp)
+		{
+			return lp.xy_valid && lp.heading_good_for_control;
+		}
+
+		/** True when 3D pose + heading are estimator-valid (needed for takeoff height checks). */
+		static inline bool localPositionReady3D(const px4_msgs::msg::VehicleLocalPosition &lp)
+		{
+			return lp.xy_valid && lp.z_valid && lp.heading_good_for_control;
+		}
+
 		class PX4AgentControl : public rclcpp::Node
 		{
 		public:
@@ -190,6 +202,15 @@ namespace uosm
 					vln_cmd_history_.push_back(trimmed_response);
 				}
 				is_vln_updated_ = true;
+
+				// Fail-closed: do not seed Move/Turn from invalid local position / heading
+				if (!localPositionReady2D(vehicle_lp_))
+				{
+					RCLCPP_WARN(get_logger(), "Ignoring VLN response: local position not valid (xy_valid=%d heading_good=%d)",
+								vehicle_lp_.xy_valid, vehicle_lp_.heading_good_for_control);
+					is_vln_updated_ = false;
+					return;
+				}
 
 				// Get current position and heading
 				float current_x = vehicle_lp_.x;
@@ -588,20 +609,24 @@ int main(int argc, char *argv[])
 			case STATE::HOVERING:
 			{
 				// RCLCPP_WARN(node->get_logger(), "STATE::HOVERING");
-				const double dist = uosm::px4::computeEuclideanDistance(node->traj_, node->vehicle_lp_, true);
-				if (dist < uosm::px4::HOVERING_TOLERANCE)
+				// Require estimator-valid 3D local pose before treating takeoff as complete
+				if (uosm::px4::localPositionReady3D(node->vehicle_lp_))
 				{
-					// once takeoff to sufficient height, start mission
-					node->is_vln_updated_ = false;
-					node->publish_vln_query();
-					state_ = STATE::FLYING;
+					const double dist = uosm::px4::computeEuclideanDistance(node->traj_, node->vehicle_lp_, true);
+					if (dist < uosm::px4::HOVERING_TOLERANCE)
+					{
+						// once takeoff to sufficient height, start mission
+						node->is_vln_updated_ = false;
+						node->publish_vln_query();
+						state_ = STATE::FLYING;
+					}
 				}
 				break;
 			}
 			case STATE::FLYING:
 			{
 				// RCLCPP_WARN(node->get_logger(), "STATE::FLYING");
-				if (node->is_vln_updated_)
+				if (node->is_vln_updated_ && uosm::px4::localPositionReady2D(node->vehicle_lp_))
 				{
 					const double dist = uosm::px4::computeEuclideanDistance(node->traj_, node->vehicle_lp_);
 					const double heading_diff = node->traj_.yaw - node->vehicle_lp_.heading;

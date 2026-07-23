@@ -212,8 +212,14 @@ namespace uosm
 					// Parse Turn command - always process turn commands regardless of object detection
 					if (line.find("Turn(") == 0)
 					{
-						// Extract angle in degrees
-						float angle_deg = std::stof(line.substr(5, line.find(')') - 5));
+						// Extract angle in degrees (require closing ')' — npos would underflow substr length)
+						const auto close_paren = line.find(')');
+						if (close_paren == std::string::npos || close_paren <= 5)
+						{
+							RCLCPP_WARN(get_logger(), "Skipping malformed Turn command (missing closing paren): %s", line.c_str());
+							continue;
+						}
+						float angle_deg = std::stof(line.substr(5, close_paren - 5));
 						// Convert to radians and update heading
 						float angle_rad = angle_deg * DEG2RAD;
 						current_heading += angle_rad;
@@ -226,8 +232,14 @@ namespace uosm
 					// Parse Move command - only process if object is found
 					else if (line.find("Move(") == 0 && is_object_found_)
 					{
-						// Extract distance in meters
-						float distance = std::stof(line.substr(5, line.find(')') - 5));
+						// Extract distance in meters (require closing ')' — npos would underflow substr length)
+						const auto close_paren = line.find(')');
+						if (close_paren == std::string::npos || close_paren <= 5)
+						{
+							RCLCPP_WARN(get_logger(), "Skipping malformed Move command (missing closing paren): %s", line.c_str());
+							continue;
+						}
+						float distance = std::stof(line.substr(5, close_paren - 5));
 
 						// Update position based on current heading and distance
 						current_x += distance * cos(current_heading);

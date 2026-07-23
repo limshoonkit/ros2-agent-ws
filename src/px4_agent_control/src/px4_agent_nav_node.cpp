@@ -301,6 +301,16 @@ namespace uosm
 		 */
 		void PX4AgentControl::publish_trajectory_setpoint()
 		{
+			if (!std::isfinite(traj_.position[0]) ||
+				!std::isfinite(traj_.position[1]) ||
+				!std::isfinite(traj_.position[2]) ||
+				!std::isfinite(traj_.yaw))
+			{
+				RCLCPP_WARN(get_logger(),
+							 "Skipping non-finite trajectory setpoint (x=%.3f y=%.3f z=%.3f yaw=%.3f)",
+							 traj_.position[0], traj_.position[1], traj_.position[2], traj_.yaw);
+				return;
+			}
 			traj_.timestamp = get_clock()->now().nanoseconds() / 1000;
 			trajectory_setpoint_pub_->publish(traj_);
 			// RCLCPP_DEBUG(get_logger(), "Setting Trajectory (x = %.2f m, y = %.2f m, z = %.2f m, yaw = %.2f rad)", traj_.position[0], traj_.position[1], traj_.position[2], traj_.yaw);

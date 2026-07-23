@@ -36,17 +36,28 @@ namespace uosm
 
 		static inline double computeEuclideanDistance(const px4_msgs::msg::TrajectorySetpoint &traj, const px4_msgs::msg::VehicleLocalPosition &vehicle_pos, bool with_z = false)
 		{
-			double dx = traj.position[0] - vehicle_pos.x;
-			double dy = traj.position[1] - vehicle_pos.y;
+			const double tx = static_cast<double>(traj.position[0]);
+			const double ty = static_cast<double>(traj.position[1]);
+			const double vx = static_cast<double>(vehicle_pos.x);
+			const double vy = static_cast<double>(vehicle_pos.y);
+			if (!std::isfinite(tx) || !std::isfinite(ty) || !std::isfinite(vx) || !std::isfinite(vy))
+			{
+				return std::numeric_limits<double>::infinity();
+			}
+			const double dx = tx - vx;
+			const double dy = ty - vy;
 			if (with_z)
 			{
-				double dz = traj.position[2] - vehicle_pos.z;
+				const double tz = static_cast<double>(traj.position[2]);
+				const double vz = static_cast<double>(vehicle_pos.z);
+				if (!std::isfinite(tz) || !std::isfinite(vz))
+				{
+					return std::numeric_limits<double>::infinity();
+				}
+				const double dz = tz - vz;
 				return std::sqrt(dx * dx + dy * dy + dz * dz);
 			}
-			else
-			{
-				return std::sqrt(dx * dx + dy * dy);
-			}
+			return std::sqrt(dx * dx + dy * dy);
 		}
 
 		class PX4AgentControl : public rclcpp::Node

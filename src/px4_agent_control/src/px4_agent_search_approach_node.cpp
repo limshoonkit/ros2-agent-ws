@@ -16,6 +16,7 @@
 #include <chrono>
 #include <functional>
 #include <string>
+#include <cmath>
 #include <regex>
 
 using namespace std::chrono;
@@ -191,10 +192,17 @@ namespace uosm
 				}
 				is_vln_updated_ = true;
 
-				// Get current position and heading
+				// Get current position and heading (reject non-finite LP before VLN integration)
 				float current_x = vehicle_lp_.x;
 				float current_y = vehicle_lp_.y;
 				float current_heading = vehicle_lp_.heading;
+				if (!std::isfinite(current_x) || !std::isfinite(current_y) || !std::isfinite(current_heading))
+				{
+					RCLCPP_ERROR(get_logger(),
+								 "Skipping VLN trajectory update: non-finite local pose (x=%.3f y=%.3f heading=%.3f)",
+								 current_x, current_y, current_heading);
+					return;
+				}
 
 				// Parse the response string line by line
 				std::istringstream response_stream(vln_response_.data);

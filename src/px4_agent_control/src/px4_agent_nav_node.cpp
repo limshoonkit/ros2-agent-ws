@@ -17,6 +17,7 @@
 #include <functional>
 #include <string>
 #include <regex>
+#include <cmath>
 
 using namespace std::chrono;
 using namespace std::chrono_literals;
@@ -309,6 +310,21 @@ namespace uosm
 		void PX4AgentControl::request_landing(float lat, float lon, float alt)
 		{
 			// https://mavlink.io/en/messages/common.html#MAV_CMD_NAV_LAND
+			if (!std::isfinite(lat) || !std::isfinite(lon) || !std::isfinite(alt))
+			{
+				RCLCPP_ERROR(get_logger(), "request_landing: refusing non-finite lat/lon/alt (%.6f, %.6f, %.2f)", lat, lon, alt);
+				return;
+			}
+			float land_yaw = traj_.yaw;
+			if (!std::isfinite(land_yaw))
+			{
+				land_yaw = vehicle_lp_.heading;
+			}
+			if (!std::isfinite(land_yaw))
+			{
+				RCLCPP_WARN(get_logger(), "request_landing: non-finite traj/vehicle yaw; using 0 rad");
+				land_yaw = 0.0f;
+			}
 			auto request = std::make_shared<px4_msgs::srv::VehicleCommand::Request>();
 
 			VehicleCommand msg{};
@@ -317,7 +333,7 @@ namespace uosm
 			msg.param2 = 0.0f; // Land Mode
 			// https://docs.px4.io/main/en/advanced_config/parameter_reference.html#MPC_LAND_SPEED
 			msg.param3 = NAN;		// empty
-			msg.param4 = traj_.yaw; // Yaw (rad)
+			msg.param4 = land_yaw; // Yaw (rad) — finite only
 			msg.param5 = lat;		// lat
 			msg.param6 = lon;		// lon
 			msg.param7 = alt;		// alt (m)
